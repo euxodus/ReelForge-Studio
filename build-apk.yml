@@ -12,27 +12,29 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Get the code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Set up Node.js 22
-        uses: actions/setup-node@v4
+      - name: Unzip the project
+        run: |
+          unzip -q -o ReelForge-Studio.zip -d src
+          if [ -d src/ReelForge-Studio ]; then mv src/ReelForge-Studio app; else mv src app; fi
+          ls -la app
+
+      - uses: actions/setup-node@v4
         with:
           node-version: 22
 
-      - name: Set up Java 21
-        uses: actions/setup-java@v4
+      - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: 21
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-
       - name: Install dependencies
-        run: npm install
+        working-directory: app
+        run: npm install --no-audit --no-fund
 
       - name: Create the Android project
+        working-directory: app
         run: |
           rm -rf android
           npx cap add android
@@ -40,7 +42,7 @@ jobs:
           npx cap sync android
 
       - name: Build the APK
-        working-directory: android
+        working-directory: app/android
         run: |
           chmod +x gradlew
           ./gradlew assembleDebug --no-daemon --stacktrace
@@ -48,19 +50,16 @@ jobs:
       - name: Name the APK
         run: |
           mkdir -p dist
-          cp android/app/build/outputs/apk/debug/app-debug.apk "dist/ReelForge-Studio-build-${{ github.run_number }}.apk"
+          cp app/android/app/build/outputs/apk/debug/app-debug.apk "dist/ReelForge-Studio-build-${{ github.run_number }}.apk"
 
-      - name: Upload APK (Actions tab)
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
           name: ReelForge-Studio-APK
           path: dist/*.apk
 
-      - name: Publish APK (Releases page)
-        uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@v2
+        continue-on-error: true
         with:
           tag_name: build-${{ github.run_number }}
           name: ReelForge Studio, build ${{ github.run_number }}
           files: dist/*.apk
-          body: |
-            Download the .apk file below on your Android phone, open it, and allow installing from this source when asked.
