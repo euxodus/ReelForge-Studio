@@ -1,0 +1,55 @@
+name: Build Android APK
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ReelForge-Studio
+    steps:
+      - uses: actions/checkout@v4
+      - name: Unzip the project
+        working-directory: ${{ github.workspace }}
+        run: unzip -q -o ReelForge-Studio.zip
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: android-actions/setup-android@v3
+      - name: Install dependencies
+        run: npm install
+      - name: Create the Android project
+        run: |
+          rm -rf android
+          npx cap add android
+          node scripts/patch-android.mjs
+          npx cap sync android
+      - name: Build the APK
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon --stacktrace
+      - name: Name the APK
+        run: |
+          mkdir -p dist
+          cp android/app/build/outputs/apk/debug/app-debug.apk "dist/ReelForge-Studio-build-${{ github.run_number }}.apk"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ReelForge-Studio-APK
+          path: ReelForge-Studio/dist/*.apk
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: ReelForge Studio, build ${{ github.run_number }}
+          files: ReelForge-Studio/dist/*.apk
